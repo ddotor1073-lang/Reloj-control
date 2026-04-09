@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gamer Watch Dashboard</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0b0b0b; color: #fff; text-align: center; padding: 20px; margin: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0b0b0b; color: #fff; text-align: center; padding: 20px; margin: 0; }
         .container { max-width: 400px; margin: 0 auto; background: #1a1a1a; padding: 25px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.8); border: 1px solid #333; }
-        h1 { font-size: 22px; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+        h1 { font-size: 22px; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; }
         .status-box { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; border: 1px solid #444; }
         #status { color: #ff4444; font-weight: bold; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -19,7 +19,6 @@
         .btn-main { background: #007bff; grid-column: span 2; font-size: 16px; padding: 20px; margin-bottom: 10px; }
         .btn-led { background: #6200ea; grid-column: span 2; border: 2px solid #7c4dff; }
         .btn-reloj { background: #2e7d32; border: 1px solid #4caf50; }
-        .btn-crono { background: #c62828; }
         #log { margin-top: 20px; font-family: monospace; font-size: 11px; color: #00ffcc; opacity: 0.7; min-height: 20px; }
     </style>
 </head>
@@ -27,11 +26,7 @@
 
 <div class="container">
     <h1>👾 Gamer Watch</h1>
-    
-    <div class="status-box">
-        Estado: <span id="status">DESCONECTADO</span>
-    </div>
-
+    <div class="status-box">Estado: <span id="status">DESCONECTADO</span></div>
     <button class="btn-main" onclick="conectarBT()">🔗 VINCULAR RELOJ</button>
 
     <div class="grid">
@@ -39,85 +34,78 @@
         <button onclick="enviar('G')">📍 GPS</button>
         <button onclick="enviar('I')">📊 SISTEMA</button>
         <button onclick="enviar('C')">☁️ CLIMA</button>
+        <button onclick="enviar('A')">📡 RADAR</button>
+        <button onclick="enviar('T')">⏲️ TIMER</button>
         
         <button class="btn-led" id="btnLED" onclick="toggleLED()">💡 CONTROL LED: OFF</button>
         
-        <button class="btn-crono" onclick="enviar('S')">▶️ START CRONO</button>
-        <button class="btn-crono" onclick="enviar('P')">🛑 STOP CRONO</button>
+        <button style="background:#c62828" onclick="enviar('S')">▶️ START CRONO</button>
+        <button style="background:#444" onclick="enviar('P')">🛑 STOP CRONO</button>
     </div>
-
-    <div id="log">Haz clic en Vincular para empezar</div>
+    <div id="log">Listo para conectar</div>
 </div>
 
 <script>
     let caracteristicaBT = null;
     let ledON = false;
 
-    // Estos son los 3 UUIDs que Chronos suele exponer. 
-    // Los pondremos todos para que el navegador nos dé permiso total.
+    // Intentaremos buscar los servicios UART y de Alerta simultáneamente
     const UUIDS = [
-        "00001811-0000-1000-8000-00805f9b34fb", // Alerts
-        "00001802-0000-1000-8000-00805f9b34fb", // Immediate Alert
-        "6e400001-b5a3-f393-e0a9-e50e24dcca9e"  // UART
+        "6e400001-b5a3-f393-e0a9-e50e24dcca9e", // UART
+        "00001811-0000-1000-8000-00805f9b34fb"  // Alert
     ];
 
     async function conectarBT() {
         const logEl = document.getElementById('log');
         const statusEl = document.getElementById('status');
-        
         try {
-            logEl.innerText = "Solicitando permisos...";
-            
-            // Forzamos al navegador a darnos acceso a los servicios específicos
             const dispositivo = await navigator.bluetooth.requestDevice({
-                filters: [{ namePrefix: 'Reloj' }], 
+                filters: [{ name: 'Reloj_Gamer' }],
                 optionalServices: UUIDS
             });
 
-            logEl.innerText = "Conectando al dispositivo...";
+            logEl.innerText = "Conectando...";
             const server = await dispositivo.gatt.connect();
             
-            logEl.innerText = "Escaneando servicios permitidos...";
-            
-            // Intentamos conectar a CUALQUIERA de los servicios que responda
-            for (const uuid of UUIDS) {
-                try {
-                    const service = await server.getPrimaryService(uuid);
-                    const characteristics = await service.getCharacteristics();
-                    for (const char of characteristics) {
-                        if (char.properties.write || char.properties.writeWithoutResponse) {
-                            caracteristicaBT = char;
-                            break;
-                        }
+            // Buscamos en todos los servicios disponibles una característica que permita escribir
+            const servicios = await server.getPrimaryServices();
+            for (const servicio of servicios) {
+                const caracteristicas = await servicio.getCharacteristics();
+                for (const char of caracteristicas) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        caracteristicaBT = char;
+                        break;
                     }
-                } catch (e) { console.log("Servicio no disponible: " + uuid); }
+                }
                 if (caracteristicaBT) break;
             }
 
             if (caracteristicaBT) {
                 statusEl.innerText = "CONECTADO ✅";
                 statusEl.style.color = "#00ff00";
-                logEl.innerText = "Canal activo: " + caracteristicaBT.uuid.substring(0,8);
+                logEl.innerText = "Canal listo para órdenes";
             } else {
-                throw new Error("Servicio protegido. Desvincula el reloj del Bluetooth del móvil primero.");
+                throw new Error("No se halló canal de escritura");
             }
-
         } catch (error) {
+            logEl.innerText = "Error: " + error.message;
             statusEl.innerText = "ERROR X";
-            logEl.innerText = error.message;
-            console.error(error);
         }
     }
 
     async function enviar(letra) {
-        if (!caracteristicaBT) { alert("¡Vincula primero!"); return; }
+        if (!caracteristicaBT) return;
         try {
             let encoder = new TextEncoder();
-            // Enviamos sin respuesta para evitar que el navegador se bloquee si el ESP32 tarda
-            await caracteristicaBT.writeValueWithoutResponse(encoder.encode(letra));
+            // Enviamos la letra con \n y usamos writeValue para asegurar entrega
+            let data = encoder.encode(letra + "\n");
+            await caracteristicaBT.writeValue(data);
             document.getElementById('log').innerText = "Enviado: " + letra;
         } catch (error) {
-            document.getElementById('log').innerText = "Error de envío";
+            // Reintento rápido si el primero falla
+            let encoder = new TextEncoder();
+            await caracteristicaBT.writeValueWithoutResponse(encoder.encode(letra + "\n"));
+            document.getElementById('log').innerText = "Enviado (alt): " + letra;
         }
     }
 
