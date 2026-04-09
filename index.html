@@ -53,33 +53,29 @@
     let caracteristicaBT = null;
     let ledON = false;
 
-    // UUIDs universales para el servicio de alertas/notificaciones
-    const SERVICE_UUID = "00001811-0000-1000-8000-00805f9b34fb";
-    const CHAR_UUID    = "00002a46-0000-1000-8000-00805f9b34fb";
+    // UUIDs de "Immediate Alert" (Servicio 1802, Char 2a06)
+    // Es el canal más abierto que tiene el Bluetooth para enviar alertas rápidas
+    const SERVICE_UUID = 0x1802; 
+    const CHAR_UUID    = 0x2a06;
 
     async function conectarBT() {
         const logEl = document.getElementById('log');
         const statusEl = document.getElementById('status');
         
         try {
-            // Buscamos cualquier dispositivo, pero pedimos permiso para el servicio de alertas
             const dispositivo = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
+                filters: [{ name: 'Reloj_Gamer' }],
                 optionalServices: [SERVICE_UUID]
             });
 
-            logEl.innerText = "Conectando al servidor GATT...";
+            logEl.innerText = "Conectando al túnel de notificaciones...";
             const server = await dispositivo.gatt.connect();
-            
-            logEl.innerText = "Buscando servicio...";
             const service = await server.getPrimaryService(SERVICE_UUID);
-            
-            logEl.innerText = "Buscando característica...";
             caracteristicaBT = await service.getCharacteristic(CHAR_UUID);
 
-            statusEl.innerText = "CONECTADO ✅";
+            statusEl.innerText = "CONECTADO (Modo Alerta) ✅";
             statusEl.style.color = "#00ff00";
-            logEl.innerText = "¡Todo listo!";
+            logEl.innerText = "¡Listo! El reloj recibirá los comandos como mensajes.";
         } catch (error) {
             console.error(error);
             statusEl.innerText = "ERROR X";
@@ -91,11 +87,12 @@
         if (!caracteristicaBT) return;
         try {
             let encoder = new TextEncoder();
-            // Enviamos solo la letra. Chronos la detectará como una notificación entrante.
-            await caracteristicaBT.writeValue(encoder.encode(letra));
-            document.getElementById('log').innerText = "Enviado: " + letra;
+            // Enviamos la letra. Chronos la detectará como una alerta de texto.
+            // Usamos writeValueWithoutResponse para mayor velocidad y menos errores
+            await caracteristicaBT.writeValueWithoutResponse(encoder.encode(letra));
+            document.getElementById('log').innerText = "Notificación enviada: " + letra;
         } catch (error) {
-            document.getElementById('log').innerText = "Error al enviar";
+            document.getElementById('log').innerText = "Fallo en el envío";
         }
     }
 
