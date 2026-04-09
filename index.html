@@ -50,38 +50,40 @@
 </div>
 
 <script>
-    let dispositivoBT = null;
     let caracteristicaBT = null;
     let ledON = false;
 
-    // UUIDs Estándar de Nordic UART (los más compatibles para enviar texto)
-    const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-    const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; 
+    // UUIDs universales para el servicio de alertas/notificaciones
+    const SERVICE_UUID = "00001811-0000-1000-8000-00805f9b34fb";
+    const CHAR_UUID    = "00002a46-0000-1000-8000-00805f9b34fb";
 
     async function conectarBT() {
-        const statusEl = document.getElementById('status');
         const logEl = document.getElementById('log');
+        const statusEl = document.getElementById('status');
         
         try {
-            logEl.innerText = "Buscando Reloj_Gamer...";
-            dispositivoBT = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'Reloj_Gamer' }],
+            // Buscamos cualquier dispositivo, pero pedimos permiso para el servicio de alertas
+            const dispositivo = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
                 optionalServices: [SERVICE_UUID]
             });
 
-            statusEl.innerText = "CONECTANDO...";
-            const server = await dispositivoBT.gatt.connect();
+            logEl.innerText = "Conectando al servidor GATT...";
+            const server = await dispositivo.gatt.connect();
+            
+            logEl.innerText = "Buscando servicio...";
             const service = await server.getPrimaryService(SERVICE_UUID);
+            
+            logEl.innerText = "Buscando característica...";
             caracteristicaBT = await service.getCharacteristic(CHAR_UUID);
 
             statusEl.innerText = "CONECTADO ✅";
             statusEl.style.color = "#00ff00";
-            logEl.innerText = "¡Conexión establecida!";
+            logEl.innerText = "¡Todo listo!";
         } catch (error) {
             console.error(error);
-            statusEl.innerText = "ERROR ❌";
-            logEl.innerText = "Error: " + error.name;
-            alert("Error técnico: " + error.message);
+            statusEl.innerText = "ERROR X";
+            logEl.innerText = "Error: " + error.message;
         }
     }
 
@@ -89,9 +91,9 @@
         if (!caracteristicaBT) return;
         try {
             let encoder = new TextEncoder();
-            // Enviamos la letra. Chronos la recibirá como un mensaje de texto.
-            await caracteristicaBT.writeValue(encoder.encode(letra + "\n"));
-            document.getElementById('log').innerText = "Comando enviado: " + letra;
+            // Enviamos solo la letra. Chronos la detectará como una notificación entrante.
+            await caracteristicaBT.writeValue(encoder.encode(letra));
+            document.getElementById('log').innerText = "Enviado: " + letra;
         } catch (error) {
             document.getElementById('log').innerText = "Error al enviar";
         }
@@ -105,6 +107,5 @@
         enviar(ledON ? 'L' : 'K');
     }
 </script>
-
 </body>
 </html>
