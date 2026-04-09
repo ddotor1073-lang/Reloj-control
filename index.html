@@ -5,23 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gamer Watch Dashboard</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0b0b0b; color: #fff; text-align: center; padding: 20px; margin: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0b0b0b; color: #fff; text-align: center; padding: 20px; margin: 0; }
         .container { max-width: 400px; margin: 0 auto; background: #1a1a1a; padding: 25px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.8); border: 1px solid #333; }
-        h1 { font-size: 22px; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; }
-        .status-box { background: #252525; padding: 10px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; }
+        h1 { font-size: 22px; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+        .status-box { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; border: 1px solid #444; }
         #status { color: #ff4444; font-weight: bold; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         button { 
             padding: 18px; border: none; border-radius: 15px; font-weight: bold; cursor: pointer;
             background: #333; color: white; transition: all 0.2s; font-size: 13px;
-            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
         }
         button:active { transform: scale(0.92); filter: brightness(1.2); }
-        .btn-main { background: #007bff; grid-column: span 2; font-size: 16px; padding: 20px; }
+        .btn-main { background: #007bff; grid-column: span 2; font-size: 16px; padding: 20px; margin-bottom: 10px; }
         .btn-led { background: #6200ea; grid-column: span 2; border: 2px solid #7c4dff; }
         .btn-reloj { background: #2e7d32; border: 1px solid #4caf50; }
         .btn-crono { background: #c62828; }
-        #log { margin-top: 20px; font-family: monospace; font-size: 11px; color: #00ffcc; opacity: 0.7; height: 15px; }
+        #log { margin-top: 20px; font-family: monospace; font-size: 11px; color: #00ffcc; opacity: 0.7; min-height: 20px; }
     </style>
 </head>
 <body>
@@ -35,11 +34,11 @@
 
     <button class="btn-main" onclick="conectarBT()">🔗 VINCULAR RELOJ</button>
 
-    <div class="grid" style="margin-top: 20px;">
-        <button class="btn-reloj" onclick="enviar('R')"><span>🏠</span>RELOJ</button>
-        <button onclick="enviar('G')"><span>📍</span>GPS</button>
-        <button onclick="enviar('I')"><span>📊</span>SISTEMA</button>
-        <button onclick="enviar('C')"><span>☁️</span>CLIMA</button>
+    <div class="grid">
+        <button class="btn-reloj" onclick="enviar('R')">🏠 RELOJ</button>
+        <button onclick="enviar('G')">📍 GPS</button>
+        <button onclick="enviar('I')">📊 SISTEMA</button>
+        <button onclick="enviar('C')">☁️ CLIMA</button>
         
         <button class="btn-led" id="btnLED" onclick="toggleLED()">💡 CONTROL LED: OFF</button>
         
@@ -47,7 +46,7 @@
         <button class="btn-crono" onclick="enviar('P')">🛑 STOP CRONO</button>
     </div>
 
-    <div id="log">Esperando conexión...</div>
+    <div id="log">Haz clic en Vincular para empezar</div>
 </div>
 
 <script>
@@ -55,16 +54,16 @@
     let caracteristicaBT = null;
     let ledON = false;
 
-    // UUIDs genéricos para servicios de datos (compatibles con Chronos/BLE)
-    const SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb"; 
-    const CHAR_UUID = "0000ffe1-0000-1000-8000-00805f9b34fb";
+    // UUIDs de Alerta (Compatibles con Chronos / InfiniTime)
+    const SERVICE_UUID = "00001811-0000-1000-8000-00805f9b34fb"; 
+    const CHAR_UUID    = "00002a46-0000-1000-8000-00805f9b34fb"; 
 
     async function conectarBT() {
         const statusEl = document.getElementById('status');
         const logEl = document.getElementById('log');
         
         try {
-            logEl.innerText = "Buscando dispositivo...";
+            logEl.innerText = "Buscando 'Reloj_Gamer'...";
             dispositivoBT = await navigator.bluetooth.requestDevice({
                 filters: [{ name: 'Reloj_Gamer' }],
                 optionalServices: [SERVICE_UUID]
@@ -77,7 +76,7 @@
 
             statusEl.innerText = "CONECTADO ✅";
             statusEl.style.color = "#00ff00";
-            logEl.innerText = "¡Listo para enviar comandos!";
+            logEl.innerText = "Vinculado con éxito.";
         } catch (error) {
             console.error(error);
             statusEl.innerText = "ERROR ❌";
@@ -87,16 +86,17 @@
 
     async function enviar(letra) {
         if (!caracteristicaBT) {
-            alert("Pulsa el botón azul para vincular el reloj primero.");
+            alert("Víncula el reloj primero");
             return;
         }
         try {
-            // Enviamos la letra con un salto de línea \n para que m.trim() en Arduino funcione bien
             let encoder = new TextEncoder();
-            await caracteristicaBT.writeValue(encoder.encode(letra + "\n"));
-            document.getElementById('log').innerText = "Enviado comando: " + letra;
+            // Enviamos la letra. m.trim() en Arduino limpiará cualquier residuo.
+            await caracteristicaBT.writeValue(encoder.encode(letra));
+            document.getElementById('log').innerText = "Enviado: " + letra;
         } catch (error) {
             document.getElementById('log').innerText = "Fallo al enviar: " + letra;
+            console.log(error);
         }
     }
 
