@@ -53,66 +53,71 @@
     let caracteristicaBT = null;
     let ledON = false;
 
+    // Estos son los 3 UUIDs que Chronos suele exponer. 
+    // Los pondremos todos para que el navegador nos dé permiso total.
+    const UUIDS = [
+        "00001811-0000-1000-8000-00805f9b34fb", // Alerts
+        "00001802-0000-1000-8000-00805f9b34fb", // Immediate Alert
+        "6e400001-b5a3-f393-e0a9-e50e24dcca9e"  // UART
+    ];
+
     async function conectarBT() {
         const logEl = document.getElementById('log');
         const statusEl = document.getElementById('status');
         
         try {
-            logEl.innerText = "Buscando cualquier dispositivo...";
+            logEl.innerText = "Solicitando permisos...";
             
-            // FILTRO TOTAL: Aceptamos cualquier dispositivo para evitar el error de emparejamiento
+            // Forzamos al navegador a darnos acceso a los servicios específicos
             const dispositivo = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: [
-                    "00001811-0000-1000-8000-00805f9b34fb", // Alert Service
-                    "00001802-0000-1000-8000-00805f9b34fb", // Immediate Alert
-                    "6e400001-b5a3-f393-e0a9-e50e24dcca9e"  // UART Service
-                ]
+                filters: [{ namePrefix: 'Reloj' }], 
+                optionalServices: UUIDS
             });
 
-            logEl.innerText = "Conectando...";
+            logEl.innerText = "Conectando al dispositivo...";
             const server = await dispositivo.gatt.connect();
             
-            // Intentamos encontrar el canal de escritura en orden de probabilidad
-            const servicios = await server.getPrimaryServices();
-            logEl.innerText = "Buscando canal de escritura...";
+            logEl.innerText = "Escaneando servicios permitidos...";
             
-            for (const service of servicios) {
-                const characteristics = await service.getCharacteristics();
-                for (const char of characteristics) {
-                    // Buscamos una característica que permita ESCRITURA
-                    if (char.properties.write || char.properties.writeWithoutResponse) {
-                        caracteristicaBT = char;
-                        break;
+            // Intentamos conectar a CUALQUIERA de los servicios que responda
+            for (const uuid of UUIDS) {
+                try {
+                    const service = await server.getPrimaryService(uuid);
+                    const characteristics = await service.getCharacteristics();
+                    for (const char of characteristics) {
+                        if (char.properties.write || char.properties.writeWithoutResponse) {
+                            caracteristicaBT = char;
+                            break;
+                        }
                     }
-                }
+                } catch (e) { console.log("Servicio no disponible: " + uuid); }
                 if (caracteristicaBT) break;
             }
 
             if (caracteristicaBT) {
                 statusEl.innerText = "CONECTADO ✅";
                 statusEl.style.color = "#00ff00";
-                logEl.innerText = "Canal encontrado: " + caracteristicaBT.uuid;
+                logEl.innerText = "Canal activo: " + caracteristicaBT.uuid.substring(0,8);
             } else {
-                throw new Error("No se encontró canal de escritura.");
+                throw new Error("Servicio protegido. Desvincula el reloj del Bluetooth del móvil primero.");
             }
 
         } catch (error) {
-            console.error(error);
-            statusEl.innerText = "ERROR";
+            statusEl.innerText = "ERROR X";
             logEl.innerText = error.message;
-            alert("Error: " + error.message + "\n\n1. GPS encendido?\n2. Reloj desconectado de otras Apps?");
+            console.error(error);
         }
     }
 
     async function enviar(letra) {
-        if (!caracteristicaBT) return;
+        if (!caracteristicaBT) { alert("¡Vincula primero!"); return; }
         try {
             let encoder = new TextEncoder();
-            await caracteristicaBT.writeValueWithoutResponse(encoder.encode(letra + "\n"));
+            // Enviamos sin respuesta para evitar que el navegador se bloquee si el ESP32 tarda
+            await caracteristicaBT.writeValueWithoutResponse(encoder.encode(letra));
             document.getElementById('log').innerText = "Enviado: " + letra;
         } catch (error) {
-            document.getElementById('log').innerText = "Fallo al enviar";
+            document.getElementById('log').innerText = "Error de envío";
         }
     }
 
